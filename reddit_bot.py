@@ -24,11 +24,16 @@ def run_bot(reddit, posts_replied_to, exclude_comments, safe_posts):
 	time.sleep(1)
 	print ("Scanning posts\n==============")
 	me = reddit.user.me()
+	for contributor in reddit.subreddit(config.subreddit).contributor():
+		if contributor not in contributors:
+			print ("Found new approved submitter, {}. Adding to list.".format(contributor))
+			contributors.append(contributor)
+			with open ("contributors.txt", "a") as s:
+				s.write(str(contributor) + "\n")
 	for post in reddit.subreddit(config.subreddit).new(limit=config.scanAmount):
-		if post.id not in list(posts_replied_to) and config.templateMessage and not None:
+		if post.id not in list(posts_replied_to) and config.templateMessage and not None and post.author not in contributors:
 			print ("Commenting on: \"" + post.title + "\" \"" + post.id + "\" by: \"" + post.author.name + "\"\n")
 			post.reply(config.templateMessage).mod.distinguish(sticky=True)
-			post.mod.contest_mode(state=True)
 			posts_replied_to.append(post.id)
 			with open ("posts_replied_to.txt", "a") as f:
 				f.write(post.id + "\n")
@@ -48,8 +53,6 @@ def run_bot(reddit, posts_replied_to, exclude_comments, safe_posts):
 			comment.delete()
 		elif comment.score >= config.thresholdSelfDelete and config.thresholdSelfDelete != 0 and comment.submission.id not in list(safe_posts):
 			print ("Post \"" + comment.submission.title + "\" reached SAFE threshold. Deleting bot comment...")
-			if config.uncontest:
-				comment.submission.mod.contest_mode(state=False)
 			comment.delete()
 			safe_posts.append(comment.submission.id)
 			with open ("safe_posts.txt", "a") as s:
@@ -60,7 +63,6 @@ def run_bot(reddit, posts_replied_to, exclude_comments, safe_posts):
 
 	print ("==============\n\nSleeping for " + str(config.scanFrequency) + " seconds...\n")
 	time.sleep(config.scanFrequency)
-
 
 def get_saved_posts(): #Posts that the bot has already commented on and doesnt need to comment on again. This will be a very populated file as it doesnt delete anything just for the sake of not spamming posts
 	if not os.path.isfile("posts_replied_to.txt"): #Only thing that uses os so that you dont have to create the file.
@@ -97,6 +99,17 @@ def safe_posts(): #This is for post that have been "accepted" by the subreddit. 
 
 	return safe_posts	
 
+def contributors(): 
+	if not os.path.isfile("contributors.txt"): 
+		contributors = []
+	else:
+		with open("contributors.txt", "r") as f:
+			contributors = f.read()
+			contributors = contributors.split("\n")
+			contributors = filter(None, contributors)
+
+	return contributors	
+
 
 #Boot Info
 
@@ -107,6 +120,7 @@ exclude_comments = list(exclude_comments())
 print ("Excluded Comments: " + str(exclude_comments))
 posts_replied_to = list(get_saved_posts())
 print ("Commented Posts: " + str(posts_replied_to) + "\n")
+contributors = list(contributors())
 
 while True:
 	run_bot(reddit, posts_replied_to, exclude_comments, safe_posts)
